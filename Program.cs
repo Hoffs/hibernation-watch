@@ -13,6 +13,8 @@ if (mode is not "client" and not "server")
     throw new ArgumentException($"Invalid mode provided: {mode}.");
 }
 
+var ip = args.Length >= 2 ? args[1] : "127.0.0.1";
+var port = args.Length >= 3 ? int.Parse(args[2]) : 19332;
 
 using var cts = new CancellationTokenSource();
 
@@ -23,9 +25,8 @@ Console.CancelKeyPress += (sender, evt) =>
 };
 
 
-var secretKeyString = args.Length >= 2 ? args[1] : "secret_key";
+var secretKeyString = args.Length >= 4 ? args[3] : "secret_key";
 var secretKey = Encoding.UTF8.GetBytes(secretKeyString);
-
 
 Console.WriteLine($"SecretKey: {string.Join(' ', secretKey.Select(b => b.ToString("x2")))}");
 
@@ -38,14 +39,14 @@ if (mode is "server")
     var gAssistant = new GoogleAssistant(clientCreds);
     await gAssistant.InitAsync(cts.Token);
 
-    var server = new TinyHibernateServer(secretKey, gAssistant, 19332, TimeSpan.FromSeconds(10));
+    var server = new TinyHibernateServer(secretKey, gAssistant, port, TimeSpan.FromSeconds(10));
     await server.StartAsync(cts.Token);
 }
 
 if (mode is "client")
 {
     Console.WriteLine("Starting client mode...");
-    var client = new TinyHibernateClient("localhost", 19332, secretKey, TimeSpan.FromSeconds(1));
+    var client = new TinyHibernateClient(ip, port, secretKey, TimeSpan.FromSeconds(1));
 
     Microsoft.Win32.SystemEvents.PowerModeChanged += async (_, args) =>
     {
@@ -110,5 +111,3 @@ if (mode is "client")
     Console.WriteLine("Delaying");
     await Task.Delay(-1);
 }
-
-
