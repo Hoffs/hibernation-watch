@@ -12,13 +12,14 @@ public class TinyHibernateServer : IDisposable
     private readonly byte[] _secretKey;
     private readonly GoogleAssistant _assistant;
 
-    public TinyHibernateServer(byte[] secretkey, GoogleAssistant assistant, int port, TimeSpan requestTimeout)
+    public TinyHibernateServer(int port, byte[] secretkey, GoogleAssistant assistant, TimeSpan requestTimeout)
     {
+        _endpoint = new IPEndPoint(IPAddress.Any, port);
         _secretKey = secretkey;
         _assistant = assistant;
-        _endpoint = new IPEndPoint(IPAddress.Any, port);
-        _udp = new UdpClient(_endpoint);
         _timeout = requestTimeout;
+
+        _udp = new UdpClient(_endpoint);
     }
 
 
@@ -35,7 +36,6 @@ public class TinyHibernateServer : IDisposable
     private async Task HandleRequestAsync(byte[] buffer, CancellationToken cancellationToken)
     {
         Console.WriteLine($"Read finished with {buffer.Length} bytes.");
-        Console.WriteLine(string.Join(' ', buffer.Select(b => b.ToString("x2"))));
         var keySlice = buffer[0..(_secretKey.Length)];
         if (!keySlice.SequenceEqual(_secretKey))
         {

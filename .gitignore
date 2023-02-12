@@ -401,3 +401,4 @@ FodyWeavers.xsd
 
 client_secrets.json
 *.mp3
+config.local.json

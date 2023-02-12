@@ -14,20 +14,24 @@ public class GoogleAssistant : IDisposable
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromMinutes(5);
     private static readonly string[] Scopes = new[] { "https://www.googleapis.com/auth/assistant-sdk-prototype" };
     private readonly GoogleClientSecrets _secrets;
+    private readonly string _deviceModelId;
+    private readonly bool _debug;
     private UserCredential? _oauth;
     private ChannelCredentials? _channelCredentials;
     private Task? _refreshTask;
 
     private CancellationTokenSource _cts = new CancellationTokenSource();
 
-    public GoogleAssistant(GoogleClientSecrets secrets)
+    public GoogleAssistant(GoogleClientSecrets secrets, string deviceModelId, bool debug)
     {
         _secrets = secrets;
+        _deviceModelId = deviceModelId;
+        _debug = debug;
     }
 
     public async Task InitAsync(CancellationToken cancellationToken)
     {
-        _oauth = await GoogleWebAuthorizationBroker.AuthorizeAsync(_secrets.Secrets, Scopes, "user", cancellationToken);
+        _oauth = await GoogleWebAuthorizationBroker.AuthorizeAsync(_secrets.Secrets, Scopes, "user", cancellationToken, codeReceiver: new BasicPromptCodeReceiver());
         _channelCredentials = GoogleGrpcCredentials.ToChannelCredentials(_oauth);
         _refreshTask = Task.Run(RefreshToken);
     }
@@ -39,7 +43,8 @@ public class GoogleAssistant : IDisposable
         {
             throw new InvalidOperationException("Assistant must be initialized first.");
         }
-        Console.WriteLine($"Assisting '{query}' at '{executedAt}.");
+
+        Console.WriteLine($"Assisting '{query}' at {executedAt:o}.");
 
         var stop = new Stopwatch();
         stop.Start();
@@ -52,20 +57,29 @@ public class GoogleAssistant : IDisposable
         await call.RequestStream.WriteAsync(request, CancellationToken.None); // cancellation not supported
         await call.RequestStream.CompleteAsync();
         
-        using var fs = File.Open($"{executedAt:yyyy_MM_dd__HH_mm_ss_ffffff}.mp3", FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
-        await foreach (var response in call.ResponseStream.ReadAllAsync<AssistResponse>().WithCancellation(cancellationToken))
+        if (_debug)
         {
-            if (response.AudioOut is not null)
+            using var fs = File.Open($"{executedAt:yyyy_MM_dd__HH_mm_ss_ffffff}.mp3", FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
+            await foreach (var response in call.ResponseStream.ReadAllAsync<AssistResponse>().WithCancellation(cancellationToken))
             {
-                await fs.WriteAsync(response.AudioOut.AudioData.Memory, cancellationToken);
+                if (response.AudioOut is not null)
+                {
+                    await fs.WriteAsync(response.AudioOut.AudioData.Memory, cancellationToken);
+                }
             }
         }
-
+        else
+        {
+            var next = true;
+            while (next)
+            {
+                next = await call.ResponseStream.MoveNext(cancellationToken);
+            }
+        }
+        
         var status = call.GetStatus();
-        Console.WriteLine(status.StatusCode);
-        Console.WriteLine(status.Detail);
-
-        Console.WriteLine($"Took {stop.ElapsedMilliseconds} to {query}");
+        Console.WriteLine($"Google Assistant Response: Status {status.StatusCode}, Detail {status.Detail}.");
+        Console.WriteLine($"Took {stop.ElapsedMilliseconds}ms for '{query}'.");
     }
 
     private async Task RefreshToken()
@@ -88,7 +102,7 @@ public class GoogleAssistant : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private static AssistRequest BuildRequest(string query)
+    private AssistRequest BuildRequest(string query)
     {
         return new Google.Assistant.Embedded.V1Alpha2.AssistRequest()
         {
@@ -104,7 +118,7 @@ public class GoogleAssistant : IDisposable
                 DeviceConfig = new DeviceConfig()
                 {
                     DeviceId = "virtual-001",
-                    DeviceModelId = "hibernation-watch-virtual-product-k535ka", // TODO: Config value
+                    DeviceModelId = _deviceModelId,
                 },
             },
         };

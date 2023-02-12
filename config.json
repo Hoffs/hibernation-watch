@@ -1,0 +1,10 @@
+{
+    "Ip": "127.0.0.1",
+    "Port": 19332,
+    "Mode": "client",
+    "DeviceModelId": "none",
+    "SecretKey": "supersecretkey",
+    "ActionResume": "turn on all lamps",
+    "ActionSuspend": "turn off all lamps",
+    "Debug": false
+}
