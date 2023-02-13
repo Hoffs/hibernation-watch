@@ -19,35 +19,43 @@ public class TinyHibernateClient : IDisposable
         _endpoint = new IPEndPoint(IPAddress.Parse(serverIp), serverPort);
         _udp = new UdpClient();
     }
-    
+
     public async Task SendAsync(byte action, CancellationToken cancellationToken)
     {
         Console.WriteLine($"Sending {action} at {DateTimeOffset.UtcNow:o}");
         var stopwatch = new Stopwatch();
         stopwatch.Start();
-        var datagram = new byte[_secretKey.Length+1];
+        var datagram = new byte[_secretKey.Length + 1];
         Array.Copy(_secretKey, datagram, _secretKey.Length);
-        datagram[^1] = action; 
+        datagram[^1] = action;
         await _udp.SendAsync(datagram, _endpoint);
 
         Console.WriteLine($"Sent {action} at {DateTimeOffset.UtcNow:o} in {stopwatch.ElapsedMilliseconds}ms");
     }
-    
+
     public async Task EnsureReachableAsync(int attempts, TimeSpan delay, CancellationToken cancellationToken)
     {
         using var ping = new Ping();
         for (int i = 0; i < attempts; i++)
         {
             await Task.Delay(delay, cancellationToken);
-            var reply = await ping.SendPingAsync(_endpoint.Address, 1000);
-            Console.WriteLine($"PING response: {reply.Status} in {reply.RoundtripTime}ms.");
-
-            if (reply.Status == IPStatus.Success)
+            try
             {
-                return;
+                var reply = await ping.SendPingAsync(_endpoint.Address, 1000);
+                Console.WriteLine($"PING response: {reply.Status} in {reply.RoundtripTime}ms.");
+
+                if (reply.Status == IPStatus.Success)
+                {
+                    return;
+                }
+            }
+            catch (PingException pe)
+            {
+                Console.WriteLine($"Ping failed: {pe.Message}");
+                Console.WriteLine($"Ping failed inner: {pe.InnerException?.Message}");
             }
         }
-        
+
         throw new Exception($"Could not reach address {_endpoint.Address}");
     }
 
