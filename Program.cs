@@ -3,6 +3,9 @@ using System.Text.Json;
 using Google.Apis.Auth.OAuth2;
 using HibernationWatch;
 
+// Set CurrentDirectory as assembly location. Makes relative URL's to always be relative to executable (e.g. Windows Services use Sys32 as working dir)
+Environment.CurrentDirectory = Path.GetDirectoryName(AppContext.BaseDirectory) ?? Environment.CurrentDirectory;
+
 ThreadPool.SetMaxThreads(10, 10);
 ThreadPool.SetMinThreads(3, 3);
 
